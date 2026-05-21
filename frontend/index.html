@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SessionRec</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap");
+
+      :root {
+        --bg-1: #f7efe2;
+        --bg-2: #dbe7f2;
+        --card: #ffffff;
+        --ink: #1d2b2f;
+        --muted: #6b7a80;
+        --accent: #ef7d4c;
+        --accent-2: #2d9c91;
+        --shadow: 0 20px 50px rgba(27, 43, 47, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top, var(--bg-1), var(--bg-2));
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 16px;
+      }
+
+      .app {
+        max-width: 460px;
+        width: 100%;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 28px;
+        margin: 0;
+      }
+
+      .session {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        animation: floatIn 0.45s ease;
+      }
+
+      .card img {
+        width: 100%;
+        display: block;
+        height: 260px;
+        object-fit: cover;
+      }
+
+      .card-body {
+        padding: 20px;
+      }
+
+      .card-title {
+        font-size: 20px;
+        margin: 0 0 8px;
+      }
+
+      .card-meta {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 18px rgba(27, 43, 47, 0.15);
+      }
+
+      .btn-like {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .btn-skip {
+        background: #f2f4f5;
+        color: var(--ink);
+      }
+
+      .btn-info {
+        background: var(--accent-2);
+        color: #fff;
+      }
+
+      .status {
+        margin-top: 16px;
+        text-align: center;
+        color: var(--muted);
+        min-height: 20px;
+      }
+
+      @keyframes floatIn {
+        from {
+          opacity: 0.5;
+          transform: translateY(10px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>SessionRec</h1>
+        <div class="session" id="session-id"></div>
+      </header>
+
+      <div class="card" id="card">
+        <img id="card-image" alt="item" />
+        <div class="card-body">
+          <h2 class="card-title" id="card-title">Loading...</h2>
+          <div class="card-meta" id="card-meta">Waiting for feed</div>
+          <div class="actions">
+            <button class="btn-skip" id="skip-btn">Skip</button>
+            <button class="btn-info" id="info-btn">Details</button>
+            <button class="btn-like" id="like-btn">Like</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="status" id="status"></div>
+    </div>
+
+    <script>
+      const API_BASE = "http://localhost:8000/api/v1";
+      const statusEl = document.getElementById("status");
+      const sessionEl = document.getElementById("session-id");
+      const cardEl = document.getElementById("card");
+      const titleEl = document.getElementById("card-title");
+      const metaEl = document.getElementById("card-meta");
+      const imageEl = document.getElementById("card-image");
+      const likeBtn = document.getElementById("like-btn");
+      const skipBtn = document.getElementById("skip-btn");
+      const infoBtn = document.getElementById("info-btn");
+
+      const EID_LIKE = 1;
+      const EID_SKIP = 2;
+      const EID_CLICK_DESCRIPTION = 3;
+      const TEST_USER_ID = 1000001;
+
+      function makeSessionId() {
+        return `sess_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+      }
+
+      const sessionId = localStorage.getItem("session_id") || makeSessionId();
+      localStorage.setItem("session_id", sessionId);
+      sessionEl.textContent = sessionId;
+
+      let currentItem = null;
+
+      async function loadCard() {
+        statusEl.textContent = "Loading feed...";
+        const response = await fetch(
+          `${API_BASE}/feed?session_id=${encodeURIComponent(
+            sessionId
+          )}&user_id=${TEST_USER_ID}&limit=1`
+        );
+
+        if (!response.ok) {
+          statusEl.textContent = "Backend is unavailable.";
+          return;
+        }
+
+        const data = await response.json();
+        currentItem = data.items[0] || null;
+
+        if (!currentItem) {
+          titleEl.textContent = "No items left";
+          metaEl.textContent = "Try a fresh session or reload.";
+          imageEl.src = "https://via.placeholder.com/600x400?text=Empty";
+          statusEl.textContent = "";
+          return;
+        }
+
+        titleEl.textContent = currentItem.title;
+        metaEl.textContent = `Item #${currentItem.item_id}`;
+        imageEl.src = currentItem.image_url;
+        statusEl.textContent = "";
+
+        cardEl.style.animation = "none";
+        cardEl.offsetHeight;
+        cardEl.style.animation = null;
+      }
+
+      async function sendEvent(eid, advance = true) {
+        if (!currentItem) {
+          return;
+        }
+
+        statusEl.textContent = "Saving...";
+        await fetch(`${API_BASE}/interact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            user_id: TEST_USER_ID,
+            item_id: currentItem.item_id,
+            eid,
+          }),
+        });
+
+        statusEl.textContent = "";
+        if (advance) {
+          await loadCard();
+        } else {
+          statusEl.textContent = "Description clicked";
+        }
+      }
+
+      likeBtn.addEventListener("click", () => sendEvent(EID_LIKE));
+      skipBtn.addEventListener("click", () => sendEvent(EID_SKIP));
+      infoBtn.addEventListener("click", () => sendEvent(EID_CLICK_DESCRIPTION, false));
+
+      loadCard();
+    </script>
+  </body>
+</html>

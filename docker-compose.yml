@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SESSION_TTL_SECONDS=86400
+      - CATALOG_SIZE=500
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
