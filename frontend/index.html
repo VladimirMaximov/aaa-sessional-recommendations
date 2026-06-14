@@ -1,258 +1,587 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SessionRec</title>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap");
-
       :root {
-        --bg-1: #f7efe2;
-        --bg-2: #dbe7f2;
-        --card: #ffffff;
-        --ink: #1d2b2f;
-        --muted: #6b7a80;
-        --accent: #ef7d4c;
-        --accent-2: #2d9c91;
-        --shadow: 0 20px 50px rgba(27, 43, 47, 0.15);
+        --bg:         #F2F3F5;
+        --surface:    #FFFFFF;
+        --border:     #D9DBE3;
+        --ink:        #1D2026;
+        --ink-2:      #505760;
+        --muted:      #8B919E;
+        --green:      #00A046;
+        --green-bg:   #E5F5ED;
+        --green-dark: #009440;
+        --red:        #E31E24;
+        --red-bg:     #FDEAEA;
+        --shadow:     0 2px 8px rgba(0,0,0,.08);
+        --shadow-lg:  0 4px 20px rgba(0,0,0,.10);
+        --r:          10px;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
 
       body {
-        margin: 0;
-        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+        background: var(--bg);
         color: var(--ink);
-        background: radial-gradient(circle at top, var(--bg-1), var(--bg-2));
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 32px 16px;
-      }
-
-      .app {
-        max-width: 460px;
-        width: 100%;
-      }
-
-      header {
+        min-height: 100dvh;
         display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        margin-bottom: 16px;
+        align-items: flex-start;
+        justify-content: center;
       }
 
-      h1 {
-        font-size: 28px;
-        margin: 0;
+      /* ── START ───────────────────────────────────────── */
+      #start-screen {
+        width: 100%;
+        max-width: 400px;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 24px;
+        gap: 28px;
       }
 
-      .session {
-        font-size: 12px;
-        color: var(--muted);
+      .start-logo {
+        width: 72px; height: 72px;
+        border-radius: 20px;
+        background: var(--green);
+        display: flex; align-items: center; justify-content: center;
       }
+      .start-logo svg { width: 40px; height: 40px; }
+
+      .start-title {
+        text-align: center;
+      }
+      .start-title h1 {
+        font-size: 26px; font-weight: 700; letter-spacing: -.4px;
+        margin-bottom: 8px;
+      }
+      .start-title p {
+        font-size: 14px; color: var(--muted); line-height: 1.65;
+      }
+
+      .start-actions { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+      .btn-primary {
+        width: 100%; padding: 15px;
+        border-radius: var(--r); border: none;
+        background: var(--green);
+        color: #fff; font-family: inherit; font-size: 15px; font-weight: 600;
+        cursor: pointer;
+        transition: background .15s, transform .1s;
+      }
+      .btn-primary:hover  { background: var(--green-dark); }
+      .btn-primary:active { transform: scale(.98); }
+
+      .btn-secondary {
+        width: 100%; padding: 14px;
+        border-radius: var(--r);
+        background: transparent;
+        border: 1.5px solid var(--border);
+        color: var(--ink-2); font-family: inherit; font-size: 14px; font-weight: 500;
+        cursor: pointer;
+        transition: border-color .15s, background .15s, color .15s;
+      }
+      .btn-secondary:hover {
+        border-color: var(--green);
+        background: var(--green-bg);
+        color: var(--green);
+      }
+
+      /* ── FEED SCREEN ─────────────────────────────────── */
+      #feed-screen {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        max-width: 420px;
+        min-height: 100dvh;
+      }
+
+      /* ── TOPBAR ──────────────────────────────────────── */
+      .topbar {
+        position: sticky; top: 0; z-index: 20;
+        height: 52px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0 16px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px;
+      }
+
+      .brand {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 16px; font-weight: 700; color: var(--ink);
+        user-select: none;
+      }
+      .brand-icon {
+        width: 28px; height: 28px;
+        border-radius: 7px;
+        background: var(--green);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .brand-icon svg { width: 16px; height: 16px; }
+
+      .topbar-btns { display: flex; gap: 6px; }
+
+      .pill {
+        display: flex; align-items: center; gap: 5px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1.5px solid var(--border);
+        background: var(--bg);
+        color: var(--ink-2);
+        font-family: inherit; font-size: 12px; font-weight: 500;
+        cursor: pointer; white-space: nowrap;
+        transition: border-color .15s, background .15s, color .15s;
+      }
+      .pill:hover { border-color: var(--green); color: var(--green); }
+      .pill.active {
+        background: var(--green-bg);
+        border-color: var(--green);
+        color: var(--green);
+      }
+
+      /* ── CARD ────────────────────────────────────────── */
+      #feed-panel { padding: 14px 16px; }
 
       .card {
-        background: var(--card);
-        border-radius: 24px;
-        box-shadow: var(--shadow);
+        background: var(--surface);
+        border-radius: 12px;
         overflow: hidden;
-        animation: floatIn 0.45s ease;
+        box-shadow: var(--shadow);
+        animation: rise .3s cubic-bezier(.22,1,.36,1) both;
       }
 
-      .card img {
-        width: 100%;
-        display: block;
-        height: 260px;
-        object-fit: cover;
+      @keyframes rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: none; }
       }
 
-      .card-body {
-        padding: 20px;
+      .img-wrap {
+        position: relative;
+        aspect-ratio: 4 / 3;
+        background: #e2e4e9;
+        overflow: hidden;
+      }
+      .img-wrap img {
+        width: 100%; height: 100%;
+        object-fit: cover; display: block;
       }
 
+      /* rank badge — top right of image */
+      #rank-badge {
+        position: absolute; top: 10px; right: 10px; z-index: 1;
+      }
+      .badge {
+        display: inline-flex; align-items: center; gap: 3px;
+        padding: 4px 9px; border-radius: 999px;
+        font-size: 12px; font-weight: 700; line-height: 1;
+      }
+      .badge.up   { background: var(--green); color: #fff; }
+      .badge.down { background: var(--red);   color: #fff; }
+      .badge.same { background: rgba(0,0,0,.45); color: #fff; }
+
+      .card-body { padding: 12px 14px 4px; }
       .card-title {
-        font-size: 20px;
-        margin: 0 0 8px;
+        font-size: 16px; font-weight: 600; color: var(--ink);
+        line-height: 1.35;
       }
-
       .card-meta {
-        color: var(--muted);
-        font-size: 14px;
-        margin-bottom: 16px;
+        margin-top: 4px;
+        font-size: 13px; color: var(--muted);
+        min-height: 18px;
       }
 
-      .actions {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
+      .card-actions {
+        padding: 10px 14px 14px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
       }
-
-      button {
-        border: none;
-        border-radius: 999px;
-        padding: 12px 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      .card-actions button {
+        padding: 13px 8px;
+        border-radius: 8px;
+        font-family: inherit; font-size: 14px; font-weight: 600;
+        cursor: pointer; border: none;
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+        transition: background .15s, transform .1s;
       }
-
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 18px rgba(27, 43, 47, 0.15);
-      }
-
-      .btn-like {
-        background: var(--accent);
-        color: #fff;
-      }
+      .card-actions button:active { transform: scale(.96); }
 
       .btn-skip {
-        background: #f2f4f5;
-        color: var(--ink);
+        background: var(--bg);
+        color: var(--ink-2);
+        border: 1.5px solid var(--border) !important;
       }
+      .btn-skip:hover { background: var(--red-bg); color: var(--red); border-color: var(--red) !important; }
 
-      .btn-info {
-        background: var(--accent-2);
+      .btn-like {
+        background: var(--green);
         color: #fff;
       }
+      .btn-like:hover { background: var(--green-dark); }
 
-      .status {
-        margin-top: 16px;
-        text-align: center;
-        color: var(--muted);
-        min-height: 20px;
+      /* ── OVERVIEW DRAWER ─────────────────────────────── */
+      #overview-drawer {
+        display: none;
+        flex-direction: column;
+        margin: 0 16px 16px;
+        background: var(--surface);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        animation: rise .25s cubic-bezier(.22,1,.36,1) both;
       }
 
-      @keyframes floatIn {
-        from {
-          opacity: 0.5;
-          transform: translateY(10px) scale(0.98);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
+      .drawer-hdr {
+        padding: 12px 16px;
+        font-size: 13px; font-weight: 600; color: var(--ink-2);
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .drawer-hdr-legend {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 11px; font-weight: 400; color: var(--muted);
+      }
+      .legend-dot {
+        display: inline-flex; align-items: center; gap: 4px;
+      }
+      .dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .dot.green { background: var(--green); }
+      .dot.red   { background: var(--red); }
+      .dot.gray  { background: var(--muted); }
+
+      .overview-list {
+        max-height: calc(100dvh - 140px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .overview-list::-webkit-scrollbar { width: 4px; }
+      .overview-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+      .ov-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .ov-item:last-child { border-bottom: none; }
+      .ov-item.liked   { background: #F0FAF5; }
+      .ov-item.skipped { background: #FEF5F5; }
+
+      .ov-rank {
+        font-size: 11px; font-weight: 600; color: var(--muted);
+        width: 22px; text-align: right; flex-shrink: 0;
+      }
+
+      .ov-thumb {
+        width: 40px; height: 40px; border-radius: 8px;
+        object-fit: cover; flex-shrink: 0;
+        background: var(--bg);
+        border: 1px solid var(--border);
+      }
+
+      .ov-text {
+        flex: 1; min-width: 0;
+        font-size: 13px; line-height: 1.3;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        color: var(--ink);
+      }
+      .ov-item.skipped .ov-text { color: var(--muted); text-decoration: line-through; }
+
+      .ov-status {
+        flex-shrink: 0;
+        display: flex; align-items: center;
+      }
+
+      /* ── STATUS LINE ─────────────────────────────────── */
+      .status-bar {
+        padding: 6px 16px 12px;
+        font-size: 13px; color: var(--muted);
+        text-align: center;
+        min-height: 32px;
       }
     </style>
   </head>
   <body>
-    <div class="app">
-      <header>
-        <h1>SessionRec</h1>
-        <div class="session" id="session-id"></div>
-      </header>
 
-      <div class="card" id="card">
-        <img id="card-image" alt="item" />
-        <div class="card-body">
-          <h2 class="card-title" id="card-title">Loading...</h2>
-          <div class="card-meta" id="card-meta">Waiting for feed</div>
-          <div class="actions">
-            <button class="btn-skip" id="skip-btn">Skip</button>
-            <button class="btn-info" id="info-btn">Details</button>
-            <button class="btn-like" id="like-btn">Like</button>
+    <!-- ── START SCREEN ───────────────────────────── -->
+    <div id="start-screen">
+      <div class="start-logo">
+        <!-- simple chart-like icon, Avito-neutral -->
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="22" width="6" height="12" rx="2" fill="white" opacity=".7"/>
+          <rect x="17" y="14" width="6" height="20" rx="2" fill="white" opacity=".85"/>
+          <rect x="28" y="6"  width="6" height="28" rx="2" fill="white"/>
+        </svg>
+      </div>
+
+      <div class="start-title">
+        <h1>SessionRec</h1>
+        <p>Лайкай и скипай — система переранжирует<br>выдачу в реальном времени</p>
+      </div>
+
+      <div class="start-actions">
+        <button class="btn-primary"   id="btn-start">Начать новую сессию</button>
+        <button class="btn-secondary" id="btn-continue" style="display:none">Продолжить предыдущую</button>
+      </div>
+    </div>
+
+    <!-- ── FEED SCREEN ────────────────────────────── -->
+    <div id="feed-screen">
+
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2"  y="9"  width="3" height="5" rx="1" fill="white" opacity=".7"/>
+              <rect x="6.5" y="6" width="3" height="8" rx="1" fill="white" opacity=".85"/>
+              <rect x="11" y="2" width="3" height="12" rx="1" fill="white"/>
+            </svg>
+          </div>
+          SessionRec
+        </div>
+        <div class="topbar-btns">
+          <button class="pill" id="btn-overview">
+            <svg width="13" height="11" viewBox="0 0 13 11" fill="none"><rect y="0" width="13" height="1.5" rx=".75" fill="currentColor"/><rect y="4.25" width="13" height="1.5" rx=".75" fill="currentColor"/><rect y="8.5" width="13" height="1.5" rx=".75" fill="currentColor"/></svg>
+            Выдача
+          </button>
+          <button class="pill" id="btn-new">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 6A4.5 4.5 0 1 1 6 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 0l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Новая
+          </button>
+        </div>
+      </div>
+
+      <!-- feed card -->
+      <div id="feed-panel">
+        <div class="card" id="card">
+          <div class="img-wrap">
+            <img id="card-img" alt="" />
+            <div id="rank-badge"></div>
+          </div>
+          <div class="card-body">
+            <div class="card-title" id="card-title">Загрузка…</div>
+            <div class="card-meta"  id="card-meta"></div>
+          </div>
+          <div class="card-actions">
+            <button class="btn-skip" id="btn-skip">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Пропустить
+            </button>
+            <button class="btn-like" id="btn-like">
+              <svg width="15" height="14" viewBox="0 0 15 14" fill="none"><path d="M7.5 12.5S1.5 8.5 1.5 4.5a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 8-6 8z" fill="white" stroke="white" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              Нравится
+            </button>
           </div>
         </div>
       </div>
 
-      <div class="status" id="status"></div>
+      <!-- original order drawer -->
+      <div id="overview-drawer">
+        <div class="drawer-hdr">
+          <span>Исходная выдача</span>
+          <div class="drawer-hdr-legend">
+            <span class="legend-dot"><span class="dot green"></span>лайк</span>
+            <span class="legend-dot"><span class="dot red"></span>скип</span>
+            <span class="legend-dot"><span class="dot gray"></span>видел</span>
+          </div>
+        </div>
+        <div class="overview-list" id="overview-list"></div>
+      </div>
+
+      <div class="status-bar" id="status"></div>
+
     </div>
 
     <script>
-      const API_BASE = "http://localhost:8000/api/v1";
-      const statusEl = document.getElementById("status");
-      const sessionEl = document.getElementById("session-id");
-      const cardEl = document.getElementById("card");
-      const titleEl = document.getElementById("card-title");
-      const metaEl = document.getElementById("card-meta");
-      const imageEl = document.getElementById("card-image");
-      const likeBtn = document.getElementById("like-btn");
-      const skipBtn = document.getElementById("skip-btn");
-      const infoBtn = document.getElementById("info-btn");
+      const EID_LIKE = 1, EID_SKIP = 2;
+      const USER_ID  = 1000001;
 
-      const EID_LIKE = 1;
-      const EID_SKIP = 2;
-      const EID_CLICK_DESCRIPTION = 3;
-      const TEST_USER_ID = 1000001;
+      const $start     = document.getElementById("start-screen");
+      const $feed      = document.getElementById("feed-screen");
+      const $btnStart  = document.getElementById("btn-start");
+      const $btnCont   = document.getElementById("btn-continue");
+      const $btnNew    = document.getElementById("btn-new");
+      const $btnOv     = document.getElementById("btn-overview");
+      const $status    = document.getElementById("status");
+      const $title     = document.getElementById("card-title");
+      const $meta      = document.getElementById("card-meta");
+      const $img       = document.getElementById("card-img");
+      const $badge     = document.getElementById("rank-badge");
+      const $card      = document.getElementById("card");
+      const $feedPanel = document.getElementById("feed-panel");
+      const $ovDrawer  = document.getElementById("overview-drawer");
+      const $ovList    = document.getElementById("overview-list");
+      const $btnLike   = document.getElementById("btn-like");
+      const $btnSkip   = document.getElementById("btn-skip");
 
-      function makeSessionId() {
-        return `sess_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+      let sessionId    = null;
+      let current      = null;
+      let overviewOpen = false;
+
+      function mkSid() { return `s_${Math.random().toString(36).slice(2)}_${Date.now()}`; }
+
+      if (localStorage.getItem("session_id")) {
+        $btnCont.style.display = "";
       }
 
-      const sessionId = localStorage.getItem("session_id") || makeSessionId();
-      localStorage.setItem("session_id", sessionId);
-      sessionEl.textContent = sessionId;
+      function showFeed() {
+        $start.style.display = "none";
+        $feed.style.display  = "flex";
+      }
 
-      let currentItem = null;
+      $btnStart.onclick = () => {
+        sessionId = mkSid();
+        localStorage.setItem("session_id", sessionId);
+        showFeed();
+        loadCard();
+      };
 
+      $btnCont.onclick = () => {
+        sessionId = localStorage.getItem("session_id") || mkSid();
+        localStorage.setItem("session_id", sessionId);
+        showFeed();
+        loadCard();
+      };
+
+      $btnNew.onclick = () => {
+        sessionId = mkSid();
+        localStorage.setItem("session_id", sessionId);
+        closeOverview();
+        loadCard();
+      };
+
+      // ── overview ──────────────────────────────────────
+      $btnOv.onclick = () => overviewOpen ? closeOverview() : openOverview();
+
+      function openOverview() {
+        overviewOpen = true;
+        $btnOv.classList.add("active");
+        $feedPanel.style.display = "none";
+        $ovDrawer.style.display  = "flex";
+        loadOverview();
+      }
+
+      function closeOverview() {
+        overviewOpen = false;
+        $btnOv.classList.remove("active");
+        $feedPanel.style.display = "";
+        $ovDrawer.style.display  = "none";
+      }
+
+      async function loadOverview() {
+        $ovList.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Загрузка…</div>`;
+        let data;
+        try {
+          const r = await fetch(
+            `/api/v1/session_overview?session_id=${encodeURIComponent(sessionId)}&user_id=${USER_ID}`
+          );
+          if (!r.ok) { $ovList.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red)">Ошибка</div>`; return; }
+          data = await r.json();
+        } catch {
+          $ovList.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red)">Ошибка сети</div>`;
+          return;
+        }
+
+        if (!data.items.length) {
+          $ovList.innerHTML = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Нет данных</div>`;
+          return;
+        }
+
+        const DOT = {
+          liked:   `<span class="dot green"></span>`,
+          skipped: `<span class="dot red"></span>`,
+          seen:    `<span class="dot gray"></span>`,
+          unseen:  `<span class="dot" style="background:transparent;border:1.5px solid var(--border)"></span>`,
+        };
+
+        $ovList.innerHTML = data.items.map(it => {
+          const src = it.image_url.startsWith("/") ? location.origin + it.image_url : it.image_url;
+          return `<div class="ov-item ${it.status}">
+            <span class="ov-rank">${it.original_rank}</span>
+            <img class="ov-thumb" src="${src}" alt="" loading="lazy" />
+            <span class="ov-text">${it.title}</span>
+            <span class="ov-status">${DOT[it.status] ?? ""}</span>
+          </div>`;
+        }).join("");
+      }
+
+      // ── feed ─────────────────────────────────────────
       async function loadCard() {
-        statusEl.textContent = "Loading feed...";
-        const response = await fetch(
-          `${API_BASE}/feed?session_id=${encodeURIComponent(
-            sessionId
-          )}&user_id=${TEST_USER_ID}&limit=1`
-        );
+        $status.textContent = "";
+        $badge.innerHTML = "";
+        $meta.textContent = "";
 
-        if (!response.ok) {
-          statusEl.textContent = "Backend is unavailable.";
+        let data;
+        try {
+          const r = await fetch(
+            `/api/v1/feed?session_id=${encodeURIComponent(sessionId)}&user_id=${USER_ID}&limit=1`
+          );
+          if (!r.ok) { $status.textContent = "Сервер недоступен."; return; }
+          data = await r.json();
+        } catch {
+          $status.textContent = "Ошибка сети.";
           return;
         }
 
-        const data = await response.json();
-        currentItem = data.items[0] || null;
+        current = data.items[0] ?? null;
 
-        if (!currentItem) {
-          titleEl.textContent = "No items left";
-          metaEl.textContent = "Try a fresh session or reload.";
-          imageEl.src = "https://via.placeholder.com/600x400?text=Empty";
-          statusEl.textContent = "";
+        if (!current) {
+          $title.textContent = "Все объявления просмотрены";
+          $img.src = "";
           return;
         }
 
-        titleEl.textContent = currentItem.title;
-        metaEl.textContent = `Item #${currentItem.item_id}`;
-        imageEl.src = currentItem.image_url;
-        statusEl.textContent = "";
+        $title.textContent = current.title;
 
-        cardEl.style.animation = "none";
-        cardEl.offsetHeight;
-        cardEl.style.animation = null;
+        const src = current.image_url;
+        $img.src = src.startsWith("/") ? location.origin + src : src;
+
+        const d = current.rank_delta;
+        if (d != null) {
+          const cls  = d > 0 ? "up" : d < 0 ? "down" : "same";
+          const sign = d > 0 ? "↑" : d < 0 ? "↓" : "–";
+          const text = d !== 0 ? `${sign}${Math.abs(d)}` : "без изменений";
+          $badge.innerHTML = `<span class="badge ${cls}">${text}</span>`;
+          if (d > 0) {
+            $meta.textContent = `Поднялось на ${d} позиций после реранкинга`;
+          } else if (d < 0) {
+            $meta.textContent = `Опустилось на ${Math.abs(d)} позиций`;
+          }
+        }
+
+        $card.style.animation = "none";
+        void $card.offsetHeight;
+        $card.style.animation = "";
       }
 
-      async function sendEvent(eid, advance = true) {
-        if (!currentItem) {
-          return;
-        }
-
-        statusEl.textContent = "Saving...";
-        await fetch(`${API_BASE}/interact`, {
+      async function send(eid) {
+        if (!current) return;
+        await fetch("/api/v1/interact", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            session_id: sessionId,
-            user_id: TEST_USER_ID,
-            item_id: currentItem.item_id,
-            eid,
+            session_id: sessionId, user_id: USER_ID,
+            item_id: current.item_id, eid,
           }),
         });
-
-        statusEl.textContent = "";
-        if (advance) {
-          await loadCard();
+        if (overviewOpen) {
+          await loadOverview();
         } else {
-          statusEl.textContent = "Description clicked";
+          await loadCard();
         }
       }
 
-      likeBtn.addEventListener("click", () => sendEvent(EID_LIKE));
-      skipBtn.addEventListener("click", () => sendEvent(EID_SKIP));
-      infoBtn.addEventListener("click", () => sendEvent(EID_CLICK_DESCRIPTION, false));
-
-      loadCard();
+      $btnLike.onclick = () => send(EID_LIKE);
+      $btnSkip.onclick = () => send(EID_SKIP);
     </script>
   </body>
 </html>
