@@ -23,17 +23,31 @@ _CAT_FEAT_IDX = [FEATURE_COLS.index(c) for c in CAT_COLS]
 class SessionReranker:
     """CatBoost YetiRank-реранкер с учётом категорий лайкнутого айтема."""
 
-    def __init__(self, model_path: str | None) -> None:
-        """Загружает модель из .cbm-файла. При ошибке логирует предупреждение и остаётся недоступным."""
+    def __init__(
+        self,
+        model_path: str | None = None,
+        model_blob: bytes | None = None,
+    ) -> None:
+        """Загружает модель из байтов (S3) или из .cbm-файла.
+
+        model_blob имеет приоритет над model_path. При ошибке логирует
+        предупреждение и остаётся недоступным (available == False).
+        """
         self._model = None
-        if model_path:
-            try:
-                from catboost import CatBoostRanker
-                m = CatBoostRanker()
+        try:
+            from catboost import CatBoostRanker
+
+            m = CatBoostRanker()
+            if model_blob is not None:
+                m.load_model(blob=model_blob)
+                self._model = m
+                logger.info("Loaded reranker from S3 blob (%d bytes)", len(model_blob))
+            elif model_path:
                 m.load_model(model_path)
                 self._model = m
-            except Exception as e:
-                logger.warning("Failed to load reranker model from %s: %s", model_path, e)
+                logger.info("Loaded reranker from %s", model_path)
+        except Exception as e:
+            logger.warning("Failed to load reranker model: %s", e)
 
     @property
     def available(self) -> bool:
