@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
+from typing import Literal
 
 import numpy as np
 from fastapi import APIRouter, Query, Request
@@ -36,6 +37,8 @@ _SKIP_ALPHA = 0.7
 # Постоянный (не затухающий) вес позволяет вектору интересов сессии смещаться
 # к свежим лайкам/скипам и делает инкрементальный расчёт идентичным полному реплею.
 _EMA_WEIGHT = 0.70
+
+FeedPolicy = Literal["rerank_plus_faiss", "rerank_only", "original_order"]
 
 
 def _get_or_assign_group(redis, session_id: str, feed_group_keys: list[str]) -> str | None:
@@ -373,6 +376,10 @@ def get_feed(
     user_id: int,
     request: Request,
     limit: int = Query(5, ge=1, le=50),
+    policy: FeedPolicy = Query(
+        "rerank_plus_faiss",
+        description="Candidate policy for evaluation: original_order, rerank_only, rerank_plus_faiss.",
+    ),
 ) -> FeedResponse:
     """Возвращает следующую порцию айтемов сессии с учётом истории лайков и скипов.
 
@@ -407,55 +414,63 @@ def get_feed(
         remaining_df = group_df.filter(~group_df["item_id"].is_in(list(seen)))
         item_ids = remaining_df["item_id"].to_list()
 
-        avail = set(remaining_df.columns)
-        has_features = all(c in avail for c in FLOAT_COLS + ORIG_CAT_COLS)
-
-        score_cache = _valid_score_cache(
-            session_store.get_score_cache(user_id, session_id),
-            group_x,
-            "legacy",
-        )
-        score_map, method, item_ids, cache_out = _compute_ema_scores(
-            item_ids,
-            group_df,
-            remaining_df,
-            history,
-            emb_store,
-            reranker,
-            has_features,
-            score_cache=score_cache,
-        )
-        session_store.set_score_cache(
-            user_id,
-            session_id,
-            scores=cache_out["scores"],
-            processed_events=cache_out["processed_events"],
-            pool_item_ids=cache_out["pool_item_ids"],
-            group_x=group_x,
-            mode="legacy",
-        )
-        if method != "original_order":
-            pool = sorted(item_ids, key=lambda iid: score_map.get(iid, 0.0), reverse=True)
-        else:
+        if policy == "original_order":
             pool = item_ids
+            method = "original_order"
+        else:
+            avail = set(remaining_df.columns)
+            has_features = all(c in avail for c in FLOAT_COLS + ORIG_CAT_COLS)
+
+            cache_mode = f"legacy:{policy}"
+            score_cache = _valid_score_cache(
+                session_store.get_score_cache(user_id, session_id),
+                group_x,
+                cache_mode,
+            )
+            score_map, method, item_ids, cache_out = _compute_ema_scores(
+                item_ids,
+                group_df,
+                remaining_df,
+                history,
+                emb_store,
+                reranker,
+                has_features,
+                score_cache=score_cache,
+            )
+            session_store.set_score_cache(
+                user_id,
+                session_id,
+                scores=cache_out["scores"],
+                processed_events=cache_out["processed_events"],
+                pool_item_ids=cache_out["pool_item_ids"],
+                group_x=group_x,
+                mode=cache_mode,
+            )
+            if method != "original_order":
+                pool = sorted(item_ids, key=lambda iid: score_map.get(iid, 0.0), reverse=True)
+            else:
+                pool = item_ids
     else:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=500, detail=f"No feed group assigned for session {session_id!r}")
 
-    # Серверная каденция ANN: каждая ann_every-я карточка отдаётся как ANN
-    # (exploit/explore по очереди); позиция карточки = число уже пройденных событий.
-    exclude_ids = set(group_df["item_id"].to_list()) | seen
-    served = _build_served(
-        pool,
-        base_index=len(history),
-        limit=limit,
-        liked=liked,
-        exclude_ids=exclude_ids,
-        emb_store=emb_store,
-        ann_index=ann_index,
-        settings=settings,
-    )
+    if policy == "rerank_plus_faiss":
+        # Серверная каденция ANN: каждая ann_every-я карточка отдаётся как ANN
+        # (exploit/explore по очереди); позиция карточки = число уже пройденных событий.
+        exclude_ids = set(group_df["item_id"].to_list()) | seen
+        served = _build_served(
+            pool,
+            base_index=len(history),
+            limit=limit,
+            liked=liked,
+            exclude_ids=exclude_ids,
+            emb_store=emb_store,
+            ann_index=ann_index,
+            settings=settings,
+        )
+    else:
+        served = [(iid, "ranker") for iid in pool[:limit]]
 
     items: list[FeedItem] = []
     for item_id, src in served:
