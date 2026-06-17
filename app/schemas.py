@@ -19,6 +19,7 @@ class FeedItem(BaseModel):
     title: str
     image_url: str
     rank_delta: int | None = None  # positive = moved up after reranking
+    source: str | None = None  # "ranker" | "ann_exploit" | "ann_explore"
 
 
 class RankChange(BaseModel):

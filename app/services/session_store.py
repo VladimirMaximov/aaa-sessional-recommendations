@@ -30,3 +30,41 @@ class RedisSessionStore:
         payload = {"user_id": user_id, "item_id": item_id, "eid": eid}
         self._redis.rpush(key, json.dumps(payload))
         self._redis.expire(key, self._ttl)
+
+    def _score_cache_key(self, user_id: int, session_id: str) -> str:
+        return f"session_scores:{user_id}:{session_id}"
+
+    def get_score_cache(self, user_id: int, session_id: str) -> dict[str, Any] | None:
+        """Кэш EMA-скоров: scores, processed_events, pool_item_ids, group_x, mode."""
+        raw = self._redis.get(self._score_cache_key(user_id, session_id))
+        if not raw:
+            return None
+        data = json.loads(raw)
+        scores = data.get("scores", {})
+        data["scores"] = {int(k): float(v) for k, v in scores.items()}
+        data["pool_item_ids"] = [int(i) for i in data.get("pool_item_ids", [])]
+        return data
+
+    def set_score_cache(
+        self,
+        user_id: int,
+        session_id: str,
+        *,
+        scores: dict[int, float],
+        processed_events: int,
+        pool_item_ids: list[int],
+        group_x: str,
+        mode: str,
+    ) -> None:
+        payload = {
+            "scores": {str(k): v for k, v in scores.items()},
+            "processed_events": processed_events,
+            "pool_item_ids": pool_item_ids,
+            "group_x": group_x,
+            "mode": mode,
+        }
+        key = self._score_cache_key(user_id, session_id)
+        self._redis.set(key, json.dumps(payload), ex=self._ttl)
+
+    def clear_score_cache(self, user_id: int, session_id: str) -> None:
+        self._redis.delete(self._score_cache_key(user_id, session_id))

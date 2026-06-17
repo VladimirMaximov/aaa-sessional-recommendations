@@ -11,7 +11,6 @@ class CatalogItem:
 
     item_id: int
     title: str
-    image_url: str
 
 
 class CatalogCache:
@@ -24,12 +23,7 @@ class CatalogCache:
         for row in df.iter_rows(named=True):
             item_id = int(row["item_id"])
             title = str(row.get("title") or f"Item {item_id}")
-            image_url = str(row.get("image_url"))
-            self._by_id[item_id] = CatalogItem(
-                item_id=item_id,
-                title=title,
-                image_url=image_url,
-            )
+            self._by_id[item_id] = CatalogItem(item_id=item_id, title=title)
 
         self._ids = list(self._by_id.keys())
 
