@@ -49,6 +49,22 @@ class Settings(BaseModel):
     emb_s3_key: Optional[str] = os.getenv("EMB_S3_KEY")
     reranker_s3_key: Optional[str] = os.getenv("RERANKER_S3_KEY") or "models/reranker_catboost.cbm"
 
+    # --- ANN mixing (OPQ+IVFPQ index built offline, loaded from S3 into memory) ---
+    faiss_index_s3_key: Optional[str] = os.getenv("FAISS_INDEX_S3_KEY") or "models/faiss_ivfpq.index"
+    faiss_ids_s3_key: Optional[str] = os.getenv("FAISS_IDS_S3_KEY") or "models/faiss_item_ids.npy"
+    catalog_s3_key: Optional[str] = os.getenv("CATALOG_S3_KEY") or "item_catalog.parquet"
+
+    ann_enabled: bool = _bool_env("ANN_ENABLED", "1")
+    ann_nprobe: int = int(os.getenv("ANN_NPROBE", "32"))
+    ann_pool_n: int = int(os.getenv("ANN_POOL_N", "400"))
+    # размер "ближнего" окна соседей: exploit берётся из cand[:ann_exploit_k],
+    # explore — из хвоста cand[ann_exploit_k:]
+    ann_exploit_k: int = int(os.getenv("ANN_EXPLOIT_K", "6"))
+    # каденс подмешивания: каждая ann_every-я карточка отдаётся как ANN
+    # (тип exploit/explore чередуется), при условии что есть лайки и индекс доступен
+    ann_every: int = int(os.getenv("ANN_EVERY", "4"))
+    ann_recent_likes: int = int(os.getenv("ANN_RECENT_LIKES", "5"))
+
     # Public base URL for item images (optional; otherwise presigned S3 URLs are used)
     image_base_url: Optional[str] = os.getenv("IMAGE_BASE_URL") or None
 
@@ -64,6 +80,10 @@ class Settings(BaseModel):
     @property
     def emb_uri(self) -> Optional[str]:
         return self._s3_uri(self.emb_s3_key)
+
+    @property
+    def catalog_uri(self) -> Optional[str]:
+        return self._s3_uri(self.catalog_s3_key)
 
     def s3_storage_options(self) -> dict[str, str]:
         """storage_options for polars/object_store reads from the custom S3 endpoint."""

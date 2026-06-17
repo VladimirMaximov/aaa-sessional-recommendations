@@ -92,3 +92,75 @@ class ItemEmbeddingStore:
             if idx >= 0:
                 out[row] = self._vecs[idx]
         return out
+
+
+class FaissANNIndex:
+    """Сжатый FAISS-индекс (OPQ+IVFPQ) по полному каталогу для подмешивания соседей.
+
+    Десериализуется из байтов S3 без записи на диск. Индекс хранит коды PQ
+    (~64 байта/вектор), поэтому 2.9M айтемов занимают ~0.25 GB RAM.
+    Вектора в индексе L2-нормированы → inner product = cosine.
+    """
+
+    def __init__(
+        self,
+        index_blob: bytes | None = None,
+        ids_blob: bytes | None = None,
+        nprobe: int = 32,
+    ) -> None:
+        self._index = None
+        self._ids: np.ndarray = np.array([], dtype=np.int64)
+        if index_blob is None or ids_blob is None:
+            return
+        try:
+            import io
+
+            import faiss
+
+            self._index = faiss.deserialize_index(
+                np.frombuffer(index_blob, dtype="uint8")
+            )
+            self._ids = np.load(io.BytesIO(ids_blob))
+            try:
+                self._index.nprobe = nprobe
+            except Exception:
+                pass
+            logger.info(
+                "FaissANNIndex loaded (ntotal=%d, ids=%d, nprobe=%d)",
+                self._index.ntotal,
+                len(self._ids),
+                nprobe,
+            )
+        except Exception as e:
+            logger.warning("Failed to load FAISS ANN index: %s — ANN mixing disabled", e)
+            self._index = None
+            self._ids = np.array([], dtype=np.int64)
+
+    @property
+    def available(self) -> bool:
+        return self._index is not None and len(self._ids) > 0
+
+    def query(
+        self,
+        query_vec: np.ndarray,
+        top_n: int,
+        exclude_ids: set[int] | None = None,
+    ) -> list[tuple[int, float]]:
+        """Top-N соседей для query_vec (item_id, score), с фильтрацией exclude_ids.
+
+        query_vec должен быть L2-нормирован (одно пространство с индексом).
+        """
+        if not self.available:
+            return []
+        exclude = exclude_ids or set()
+        q = np.ascontiguousarray(query_vec, dtype=np.float32).reshape(1, -1)
+        sims, idxs = self._index.search(q, top_n)
+        out: list[tuple[int, float]] = []
+        for score, idx in zip(sims[0], idxs[0]):
+            if idx < 0:
+                continue
+            iid = int(self._ids[idx])
+            if iid in exclude:
+                continue
+            out.append((iid, float(score)))
+        return out

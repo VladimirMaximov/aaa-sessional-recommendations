@@ -6,7 +6,7 @@ import random
 import numpy as np
 from fastapi import APIRouter, Query, Request
 
-from app.ml.ann_index import ItemEmbeddingStore
+from app.ml.ann_index import FaissANNIndex, ItemEmbeddingStore
 from app.ml.reranker import FLOAT_COLS, ORIG_CAT_COLS, SessionReranker
 from app.schemas import (
     FeedItem,
@@ -106,6 +106,102 @@ def _build_query_emb(
     if n < 1e-8:
         return None
     return (pos / n).astype(np.float32)
+
+
+def _likes_query_emb(
+    liked: list[int],
+    emb_store: ItemEmbeddingStore,
+    recent: int,
+) -> np.ndarray | None:
+    """Нормированное среднее эмбеддингов последних `recent` лайков (query для ANN-поиска)."""
+    if not liked:
+        return None
+    recent_liked = liked[-recent:] if recent > 0 else liked
+    v = emb_store.get_embs_batch(recent_liked).mean(axis=0).astype(np.float64)
+    n = np.linalg.norm(v)
+    if n < 1e-8:
+        return None
+    return (v / n).astype(np.float32)
+
+
+def _pick_ann_card(
+    query_emb: np.ndarray,
+    exclude_ids: set[int],
+    ann_index: FaissANNIndex,
+    settings,
+    want_explore: bool,
+) -> tuple[int, str] | None:
+    """Выбирает один ANN-айтем: exploit из ближнего окна, explore из хвоста соседей.
+
+    Возвращает (item_id, source) или None если кандидатов нет.
+    """
+    cand = ann_index.query(query_emb, settings.ann_pool_n, exclude_ids)
+    if not cand:
+        return None
+
+    head = cand[: settings.ann_exploit_k]
+    tail = cand[settings.ann_exploit_k :]
+
+    if want_explore and tail:
+        iid, _ = random.choice(tail)
+        return int(iid), "ann_explore"
+
+    iid, _ = random.choice(head or cand)
+    return int(iid), "ann_exploit"
+
+
+def _build_served(
+    pool: list[int],
+    base_index: int,
+    limit: int,
+    liked: list[int],
+    exclude_ids: set[int],
+    emb_store: ItemEmbeddingStore,
+    ann_index: FaissANNIndex,
+    settings,
+) -> list[tuple[int, str]]:
+    """Собирает выдачу с серверной каденцией ANN.
+
+    Каждая ann_every-я карточка (по глобальной позиции base_index..) становится
+    ANN-карточкой с чередованием exploit/explore. На остальных позициях — следующий
+    невыбранный ranker-айтем из pool. ANN-слоты падают обратно на ranker при
+    отсутствии кандидатов.
+    """
+    query_emb = (
+        _likes_query_emb(liked, emb_store, settings.ann_recent_likes)
+        if settings.ann_enabled and liked and ann_index.available
+        else None
+    )
+
+    every = settings.ann_every
+    served: list[tuple[int, str]] = []
+    used: set[int] = set()
+    pool_ptr = 0
+
+    for pos in range(base_index, base_index + limit):
+        is_ann_slot = (
+            query_emb is not None and every > 0 and (pos + 1) % every == 0
+        )
+        if is_ann_slot:
+            ann_slot_index = (pos + 1) // every - 1
+            want_explore = ann_slot_index % 2 == 1
+            picked = _pick_ann_card(
+                query_emb, exclude_ids | used, ann_index, settings, want_explore
+            )
+            if picked is not None:
+                served.append(picked)
+                used.add(picked[0])
+                continue
+
+        while pool_ptr < len(pool):
+            iid = pool[pool_ptr]
+            pool_ptr += 1
+            if iid not in used:
+                served.append((iid, "ranker"))
+                used.add(iid)
+                break
+
+    return served
 
 
 def _compute_ema_scores(
@@ -289,6 +385,8 @@ def get_feed(
     redis = request.app.state.redis
     emb_store: ItemEmbeddingStore = request.app.state.emb_store
     reranker: SessionReranker = request.app.state.reranker
+    ann_index: FaissANNIndex = request.app.state.ann_index
+    settings = request.app.state.settings
     feed_groups: dict = request.app.state.feed_groups
     feed_group_keys: list = request.app.state.feed_group_keys
 
@@ -345,20 +443,37 @@ def get_feed(
 
         raise HTTPException(status_code=500, detail=f"No feed group assigned for session {session_id!r}")
 
+    # Серверная каденция ANN: каждая ann_every-я карточка отдаётся как ANN
+    # (exploit/explore по очереди); позиция карточки = число уже пройденных событий.
+    exclude_ids = set(group_df["item_id"].to_list()) | seen
+    served = _build_served(
+        pool,
+        base_index=len(history),
+        limit=limit,
+        liked=liked,
+        exclude_ids=exclude_ids,
+        emb_store=emb_store,
+        ann_index=ann_index,
+        settings=settings,
+    )
+
     items: list[FeedItem] = []
-    for item_id in pool:
+    for item_id, src in served:
         meta = catalog.get_item(item_id)
-        if not meta:
-            continue
+        if meta is None:
+            if src == "ranker":
+                continue
+            title = f"Item {item_id}"
+        else:
+            title = meta.title
         items.append(
             FeedItem(
-                item_id=meta.item_id,
-                title=meta.title,
-                image_url=image_urls.url_for(meta.item_id),
+                item_id=item_id,
+                title=title,
+                image_url=image_urls.url_for(item_id),
+                source=src,
             )
         )
-        if len(items) >= limit:
-            break
 
     if method != "original_order" and item_ids:
         served_ids = [it.item_id for it in items]
@@ -374,15 +489,20 @@ def get_feed(
         movers_str = "  ".join(
             f"#{r.original_rank}→#{r.new_rank}({r.delta:+d})" for r in top_movers
         )
+        n_exploit = sum(1 for it in items if it.source == "ann_exploit")
+        n_explore = sum(1 for it in items if it.source == "ann_explore")
         logger.info(
             "rerank  session=%-22s  method=%-18s  "
-            "liked=%d  skipped=%d  candidates=%d  served_mean_lift=%+.1f  top3=[%s]",
+            "liked=%d  skipped=%d  candidates=%d  served_mean_lift=%+.1f  "
+            "ann=[exploit=%d explore=%d]  top3=[%s]",
             session_id[:22],
             method,
             len(liked),
             len(skipped),
             len(item_ids),
             rerank_info.mean_rank_lift,
+            n_exploit,
+            n_explore,
             movers_str,
         )
 

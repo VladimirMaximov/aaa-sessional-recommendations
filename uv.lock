@@ -17,6 +17,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "boto3" },
     { name = "catboost" },
+    { name = "faiss-cpu" },
     { name = "fastapi" },
     { name = "numpy" },
     { name = "polars" },
@@ -29,7 +30,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "accelerate" },
-    { name = "faiss-cpu" },
     { name = "ipykernel" },
     { name = "jupyter" },
     { name = "matplotlib" },
@@ -48,6 +48,7 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.43.29" },
     { name = "catboost", specifier = ">=1.2" },
+    { name = "faiss-cpu", specifier = ">=1.14.3" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "polars", specifier = ">=1.41.2" },
@@ -60,7 +61,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "accelerate", specifier = ">=1.14.0" },
-    { name = "faiss-cpu", specifier = ">=1.14.3" },
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.9" },

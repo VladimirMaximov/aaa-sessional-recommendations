@@ -187,6 +187,7 @@
       .badge.up   { background: var(--green); color: #fff; }
       .badge.down { background: var(--red);   color: #fff; }
       .badge.same { background: rgba(0,0,0,.45); color: #fff; }
+      .badge.ann  { background: #7c3aed; color: #fff; }
 
       .card-body { padding: 12px 14px 4px; }
       .card-title {
@@ -545,16 +546,22 @@
         const src = current.image_url;
         $img.src = src.startsWith("/") ? location.origin + src : src;
 
-        const d = current.rank_delta;
-        if (d != null) {
-          const cls  = d > 0 ? "up" : d < 0 ? "down" : "same";
-          const sign = d > 0 ? "↑" : d < 0 ? "↓" : "–";
-          const text = d !== 0 ? `${sign}${Math.abs(d)}` : "без изменений";
-          $badge.innerHTML = `<span class="badge ${cls}">${text}</span>`;
-          if (d > 0) {
-            $meta.textContent = `Поднялось на ${d} позиций после реранкинга`;
-          } else if (d < 0) {
-            $meta.textContent = `Опустилось на ${Math.abs(d)} позиций`;
+        if (current.source && current.source.startsWith("ann")) {
+          const kind = current.source === "ann_explore" ? "explore" : "exploit";
+          $badge.innerHTML = `<span class="badge ann">★ ANN · ${kind}</span>`;
+          $meta.textContent = "Рекомендация ANN (вне исходной выдачи сессии)";
+        } else {
+          const d = current.rank_delta;
+          if (d != null) {
+            const cls  = d > 0 ? "up" : d < 0 ? "down" : "same";
+            const sign = d > 0 ? "↑" : d < 0 ? "↓" : "–";
+            const text = d !== 0 ? `${sign}${Math.abs(d)}` : "без изменений";
+            $badge.innerHTML = `<span class="badge ${cls}">${text}</span>`;
+            if (d > 0) {
+              $meta.textContent = `Поднялось на ${d} позиций после реранкинга`;
+            } else if (d < 0) {
+              $meta.textContent = `Опустилось на ${Math.abs(d)} позиций`;
+            }
           }
         }
 
