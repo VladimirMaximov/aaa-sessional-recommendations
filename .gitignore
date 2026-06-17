@@ -1,1 +1,10 @@
 .DS_Store
+.env
+.venv/
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+notebooks/uploaded_beget.txt
+notebooks/errors_beget.txt
