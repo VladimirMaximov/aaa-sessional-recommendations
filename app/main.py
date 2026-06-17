@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import polars as pl
@@ -36,10 +37,14 @@ def _load_feed_groups(
     max_groups: int = 0,
 ) -> dict[str, pl.DataFrame]:
     if not feed_uri:
-        raise RuntimeError("FEED_S3_KEY / S3_BUCKET are not set — cannot load feed from S3")
-    avail = pl.read_parquet(feed_uri, n_rows=0, storage_options=storage_options).columns
+        raise RuntimeError(
+            "No feed data found. Configure S3 (S3_BUCKET + FEED_S3_KEY) "
+            "or place feed.parquet in LOCAL_DATA_DIR (default: ./data/feed.parquet)."
+        )
+    opts = storage_options if feed_uri.startswith("s3://") else {}
+    avail = pl.read_parquet(feed_uri, n_rows=0, storage_options=opts).columns
     cols = [c for c in _FEED_KEEP_COLS if c in avail]
-    df = pl.read_parquet(feed_uri, columns=cols, storage_options=storage_options)
+    df = pl.read_parquet(feed_uri, columns=cols, storage_options=opts)
     groups = {str(x): grp for (x,), grp in df.group_by(["x"], maintain_order=True)}
     if max_groups > 0 and len(groups) > max_groups:
         keys = list(groups)[:max_groups]
@@ -56,7 +61,8 @@ def _build_catalog(
     вне фид-групп), при недоступности — фолбэк на тайтлы из фид-групп."""
     if catalog_uri:
         try:
-            df = pl.read_parquet(catalog_uri, columns=["item_id", "title"], storage_options=storage_options)
+            opts = storage_options if catalog_uri.startswith("s3://") else {}
+            df = pl.read_parquet(catalog_uri, columns=["item_id", "title"], storage_options=opts)
             logger.info("Catalog loaded from S3 (%s): %d items", catalog_uri, len(df))
             return CatalogCache(df)
         except Exception as e:
@@ -67,6 +73,16 @@ def _build_catalog(
     frames = [grp.select(["item_id", "title"]) for grp in feed_groups.values()]
     combined = pl.concat(frames).unique("item_id").select(["item_id", "title"])
     return CatalogCache(combined)
+
+
+def _local_bytes(path: str | None) -> bytes | None:
+    """Reads a local file into bytes if it exists."""
+    if path and os.path.exists(path):
+        with open(path, "rb") as f:
+            data = f.read()
+        logger.info("Loaded local file %s (%d bytes)", path, len(data))
+        return data
+    return None
 
 
 def _s3_bytes(s: Settings, key: str | None) -> bytes | None:
@@ -109,20 +125,31 @@ async def lifespan(app: FastAPI):
     session_store = RedisSessionStore(redis_client, ttl_seconds=settings.session_ttl_seconds)
 
     feed_item_ids = list({iid for grp in feed_groups.values() for iid in grp["item_id"].to_list()})
+    emb_opts = storage_options if (settings.emb_uri or "").startswith("s3://") else {}
     emb_store = ItemEmbeddingStore(
         settings.emb_uri,
         emb_dim=settings.emb_dim,
         item_ids=feed_item_ids,
-        storage_options=storage_options,
+        storage_options=emb_opts,
     )
     emb_store._setup_index(feed_item_ids)
 
-    reranker = SessionReranker(model_blob=_s3_bytes(settings, settings.reranker_s3_key))
+    reranker_blob = (
+        _s3_bytes(settings, settings.reranker_s3_key)
+        or _local_bytes(settings._local("models", "reranker_catboost.cbm"))
+    )
+    reranker = SessionReranker(model_blob=reranker_blob)
 
     if settings.ann_enabled:
         ann_index = FaissANNIndex(
-            index_blob=_s3_bytes(settings, settings.faiss_index_s3_key),
-            ids_blob=_s3_bytes(settings, settings.faiss_ids_s3_key),
+            index_blob=(
+                _s3_bytes(settings, settings.faiss_index_s3_key)
+                or _local_bytes(settings._local("models", "faiss_ivfpq.index"))
+            ),
+            ids_blob=(
+                _s3_bytes(settings, settings.faiss_ids_s3_key)
+                or _local_bytes(settings._local("models", "faiss_item_ids.npy"))
+            ),
             nprobe=settings.ann_nprobe,
         )
     else:

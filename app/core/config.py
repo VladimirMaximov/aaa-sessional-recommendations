@@ -36,7 +36,12 @@ class Settings(BaseModel):
     feed_max_groups: int = int(os.getenv("FEED_MAX_GROUPS", "2000"))
     emb_dim: int = int(os.getenv("EMB_DIM", "768"))
 
-    # --- S3 (all data artifacts live in S3; nothing is read from local disk) ---
+    # --- Local data directory (fallback when S3 is not configured) ---
+    # Place files as: data/feed.parquet, data/item_embeddings.parquet,
+    # data/item_catalog.parquet, data/models/reranker_catboost.cbm, etc.
+    local_data_dir: str = os.getenv("LOCAL_DATA_DIR", "./data")
+
+    # --- S3 (takes priority over local files when configured) ---
     s3_endpoint_url: str = os.getenv("S3_ENDPOINT_URL", "https://s3.ru1.storage.beget.cloud")
     s3_bucket: Optional[str] = os.getenv("S3_BUCKET")
     s3_access_key_id: Optional[str] = os.getenv("S3_ACCESS_KEY_ID")
@@ -73,17 +78,22 @@ class Settings(BaseModel):
             return None
         return f"s3://{self.s3_bucket}/{key}"
 
+    def _local(self, *parts: str) -> Optional[str]:
+        """Returns the local path if the file exists, else None."""
+        p = os.path.join(self.local_data_dir, *parts)
+        return p if os.path.exists(p) else None
+
     @property
     def feed_uri(self) -> Optional[str]:
-        return self._s3_uri(self.feed_s3_key)
+        return self._s3_uri(self.feed_s3_key) or self._local("feed.parquet")
 
     @property
     def emb_uri(self) -> Optional[str]:
-        return self._s3_uri(self.emb_s3_key)
+        return self._s3_uri(self.emb_s3_key) or self._local("item_embeddings.parquet")
 
     @property
     def catalog_uri(self) -> Optional[str]:
-        return self._s3_uri(self.catalog_s3_key)
+        return self._s3_uri(self.catalog_s3_key) or self._local("item_catalog.parquet")
 
     def s3_storage_options(self) -> dict[str, str]:
         """storage_options for polars/object_store reads from the custom S3 endpoint."""
