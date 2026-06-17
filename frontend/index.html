@@ -309,6 +309,78 @@
         text-align: center;
         min-height: 32px;
       }
+
+      /* ── SESSION SUMMARY ─────────────────────────────── */
+      #summary-panel {
+        display: none;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 14px 16px 0;
+      }
+
+      .stat-card {
+        background: var(--surface);
+        border-radius: 10px;
+        padding: 10px 8px;
+        text-align: center;
+        box-shadow: var(--shadow);
+      }
+      .stat-card .stat-val {
+        font-size: 22px; font-weight: 700; line-height: 1;
+      }
+      .stat-card .stat-label {
+        margin-top: 3px;
+        font-size: 11px; color: var(--muted);
+      }
+      .stat-card.liked  .stat-val { color: var(--green); }
+      .stat-card.skipped .stat-val { color: var(--red); }
+      .stat-card.total  .stat-val { color: var(--ink); }
+
+      .summary-list-wrap {
+        flex: 1;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .summary-list-wrap::-webkit-scrollbar { width: 4px; }
+      .summary-list-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+      .summary-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .summary-tab {
+        padding: 10px 16px;
+        font-size: 13px; font-weight: 600; color: var(--muted);
+        border: none; background: transparent;
+        font-family: inherit; cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: color .15s, border-color .15s;
+      }
+      .summary-tab.active {
+        color: var(--green);
+        border-bottom-color: var(--green);
+      }
+
+      .summary-legend {
+        margin-left: auto;
+        display: flex; align-items: center; gap: 10px;
+        padding: 0 16px;
+        font-size: 11px; font-weight: 400; color: var(--muted);
+      }
+
+      .summary-footer {
+        padding: 12px 16px 24px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
     </style>
   </head>
   <body>
@@ -354,6 +426,10 @@
             <svg width="13" height="11" viewBox="0 0 13 11" fill="none"><rect y="0" width="13" height="1.5" rx=".75" fill="currentColor"/><rect y="4.25" width="13" height="1.5" rx=".75" fill="currentColor"/><rect y="8.5" width="13" height="1.5" rx=".75" fill="currentColor"/></svg>
             Выдача
           </button>
+          <button class="pill" id="btn-end">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M9.5 3.2A5 5 0 1 1 3.5 3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            Завершить
+          </button>
           <button class="pill" id="btn-new">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 6A4.5 4.5 0 1 1 6 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 0l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Новая
@@ -398,6 +474,25 @@
         <div class="overview-list" id="overview-list"></div>
       </div>
 
+      <!-- session summary panel -->
+      <div id="summary-panel">
+        <div class="summary-stats" id="summary-stats"></div>
+        <div class="summary-tabs">
+          <button class="summary-tab active" id="tab-history">История</button>
+          <button class="summary-tab" id="tab-original">Исходная выдача</button>
+          <div class="summary-legend">
+            <span class="legend-dot"><span class="dot green"></span>лайк</span>
+            <span class="legend-dot"><span class="dot red"></span>скип</span>
+            <span class="legend-dot"><span class="dot gray"></span>видел</span>
+          </div>
+        </div>
+        <div class="summary-list-wrap" id="summary-list"></div>
+        <div class="summary-footer">
+          <button class="btn-primary" id="btn-summary-new">Начать новую сессию</button>
+          <button class="btn-secondary" id="btn-summary-back">Продолжить сессию</button>
+        </div>
+      </div>
+
       <div class="status-bar" id="status"></div>
 
     </div>
@@ -406,27 +501,38 @@
       const EID_LIKE = 1, EID_SKIP = 2;
       const USER_ID  = 1000001;
 
-      const $start     = document.getElementById("start-screen");
-      const $feed      = document.getElementById("feed-screen");
-      const $btnStart  = document.getElementById("btn-start");
-      const $btnCont   = document.getElementById("btn-continue");
-      const $btnNew    = document.getElementById("btn-new");
-      const $btnOv     = document.getElementById("btn-overview");
-      const $status    = document.getElementById("status");
-      const $title     = document.getElementById("card-title");
-      const $meta      = document.getElementById("card-meta");
-      const $img       = document.getElementById("card-img");
-      const $badge     = document.getElementById("rank-badge");
-      const $card      = document.getElementById("card");
-      const $feedPanel = document.getElementById("feed-panel");
-      const $ovDrawer  = document.getElementById("overview-drawer");
-      const $ovList    = document.getElementById("overview-list");
-      const $btnLike   = document.getElementById("btn-like");
-      const $btnSkip   = document.getElementById("btn-skip");
+      const $start          = document.getElementById("start-screen");
+      const $feed           = document.getElementById("feed-screen");
+      const $btnStart       = document.getElementById("btn-start");
+      const $btnCont        = document.getElementById("btn-continue");
+      const $btnNew         = document.getElementById("btn-new");
+      const $btnOv          = document.getElementById("btn-overview");
+      const $btnEnd         = document.getElementById("btn-end");
+      const $status         = document.getElementById("status");
+      const $title          = document.getElementById("card-title");
+      const $meta           = document.getElementById("card-meta");
+      const $img            = document.getElementById("card-img");
+      const $badge          = document.getElementById("rank-badge");
+      const $card           = document.getElementById("card");
+      const $feedPanel      = document.getElementById("feed-panel");
+      const $ovDrawer       = document.getElementById("overview-drawer");
+      const $ovList         = document.getElementById("overview-list");
+      const $btnLike        = document.getElementById("btn-like");
+      const $btnSkip        = document.getElementById("btn-skip");
+      const $summaryPanel   = document.getElementById("summary-panel");
+      const $summaryStats   = document.getElementById("summary-stats");
+      const $summaryList    = document.getElementById("summary-list");
+      const $btnSummaryNew  = document.getElementById("btn-summary-new");
+      const $btnSummaryBack = document.getElementById("btn-summary-back");
 
       let sessionId    = null;
       let current      = null;
       let overviewOpen = false;
+      let summaryOpen  = false;
+
+      // history of items shown during this session, in viewed order
+      // each entry: { item_id, title, image_url, status: 'liked'|'skipped'|'seen' }
+      let viewHistory  = [];
 
       function mkSid() { return `s_${Math.random().toString(36).slice(2)}_${Date.now()}`; }
 
@@ -439,9 +545,14 @@
         $feed.style.display  = "flex";
       }
 
-      $btnStart.onclick = () => {
+      function startNewSession() {
         sessionId = mkSid();
         localStorage.setItem("session_id", sessionId);
+        viewHistory = [];
+      }
+
+      $btnStart.onclick = () => {
+        startNewSession();
         showFeed();
         loadCard();
       };
@@ -449,19 +560,37 @@
       $btnCont.onclick = () => {
         sessionId = localStorage.getItem("session_id") || mkSid();
         localStorage.setItem("session_id", sessionId);
+        viewHistory = [];
         showFeed();
         loadCard();
       };
 
       $btnNew.onclick = () => {
-        sessionId = mkSid();
-        localStorage.setItem("session_id", sessionId);
+        startNewSession();
         closeOverview();
+        closeSummary();
         loadCard();
       };
 
       // ── overview ──────────────────────────────────────
       $btnOv.onclick = () => overviewOpen ? closeOverview() : openOverview();
+
+      // ── summary ───────────────────────────────────────
+      const $tabHistory  = document.getElementById("tab-history");
+      const $tabOriginal = document.getElementById("tab-original");
+      let summaryTab = "history"; // "history" | "original"
+
+      $btnEnd.onclick          = () => summaryOpen ? closeSummary() : openSummary();
+      $btnSummaryNew.onclick   = () => { startNewSession(); closeSummary(); loadCard(); };
+      $btnSummaryBack.onclick  = () => closeSummary();
+
+      $tabHistory.onclick  = () => { summaryTab = "history";  setActiveTab(); renderSummaryList(); };
+      $tabOriginal.onclick = () => { summaryTab = "original"; setActiveTab(); renderOriginalList(); };
+
+      function setActiveTab() {
+        $tabHistory.classList.toggle("active",  summaryTab === "history");
+        $tabOriginal.classList.toggle("active", summaryTab === "original");
+      }
 
       function openOverview() {
         overviewOpen = true;
@@ -476,6 +605,101 @@
         $btnOv.classList.remove("active");
         $feedPanel.style.display = "";
         $ovDrawer.style.display  = "none";
+      }
+
+      function openSummary() {
+        summaryOpen = true;
+        closeOverview();
+        summaryTab = "history";
+        setActiveTab();
+        $btnEnd.classList.add("active");
+        $feedPanel.style.display    = "none";
+        $summaryPanel.style.display = "flex";
+        renderSummaryStats();
+        renderSummaryList();
+      }
+
+      function closeSummary() {
+        summaryOpen = false;
+        $btnEnd.classList.remove("active");
+        $feedPanel.style.display    = "";
+        $summaryPanel.style.display = "none";
+      }
+
+      function _fullHistory() {
+        return current
+          ? [...viewHistory, { ...current, status: "seen" }]
+          : [...viewHistory];
+      }
+
+      function renderSummaryStats() {
+        const hist    = _fullHistory();
+        const liked   = hist.filter(i => i.status === "liked").length;
+        const skipped = hist.filter(i => i.status === "skipped").length;
+        $summaryStats.innerHTML = `
+          <div class="stat-card liked">
+            <div class="stat-val">${liked}</div>
+            <div class="stat-label">Нравится</div>
+          </div>
+          <div class="stat-card skipped">
+            <div class="stat-val">${skipped}</div>
+            <div class="stat-label">Пропущено</div>
+          </div>
+          <div class="stat-card total">
+            <div class="stat-val">${hist.length}</div>
+            <div class="stat-label">Всего</div>
+          </div>`;
+      }
+
+      const DOT_SUM = {
+        liked:   `<span class="dot green"></span>`,
+        skipped: `<span class="dot red"></span>`,
+        seen:    `<span class="dot gray"></span>`,
+        unseen:  `<span class="dot" style="background:transparent;border:1.5px solid var(--border)"></span>`,
+      };
+
+      function _ovItemHTML(it, rank) {
+        const src = it.image_url && !it.image_url.startsWith("/")
+          ? it.image_url
+          : location.origin + (it.image_url || "");
+        return `<div class="ov-item ${it.status}">
+          <span class="ov-rank">${rank}</span>
+          <img class="ov-thumb" src="${src}" alt="" loading="lazy" />
+          <span class="ov-text">${it.title}</span>
+          <span class="ov-status">${DOT_SUM[it.status] ?? ""}</span>
+        </div>`;
+      }
+
+      function renderSummaryList() {
+        const hist = _fullHistory();
+        if (!hist.length) {
+          $summaryList.innerHTML = `<div style="padding:32px 0;text-align:center;color:var(--muted);font-size:13px">Нет просмотренных айтемов</div>`;
+          return;
+        }
+        $summaryList.innerHTML = hist.map((it, i) => _ovItemHTML(it, i + 1)).join("");
+      }
+
+      async function renderOriginalList() {
+        $summaryList.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Загрузка…</div>`;
+        let data;
+        try {
+          const r = await fetch(
+            `/api/v1/session_overview?session_id=${encodeURIComponent(sessionId)}&user_id=${USER_ID}`
+          );
+          if (!r.ok) throw new Error(r.status);
+          data = await r.json();
+        } catch {
+          $summaryList.innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:13px">Ошибка загрузки</div>`;
+          return;
+        }
+        if (summaryTab !== "original") return;
+
+        if (!data.items.length) {
+          $summaryList.innerHTML = `<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Нет данных</div>`;
+          return;
+        }
+
+        $summaryList.innerHTML = data.items.map(it => _ovItemHTML(it, it.original_rank)).join("");
       }
 
       async function loadOverview() {
@@ -497,26 +721,12 @@
           return;
         }
 
-        const DOT = {
-          liked:   `<span class="dot green"></span>`,
-          skipped: `<span class="dot red"></span>`,
-          seen:    `<span class="dot gray"></span>`,
-          unseen:  `<span class="dot" style="background:transparent;border:1.5px solid var(--border)"></span>`,
-        };
-
-        $ovList.innerHTML = data.items.map(it => {
-          const src = it.image_url.startsWith("/") ? location.origin + it.image_url : it.image_url;
-          return `<div class="ov-item ${it.status}">
-            <span class="ov-rank">${it.original_rank}</span>
-            <img class="ov-thumb" src="${src}" alt="" loading="lazy" />
-            <span class="ov-text">${it.title}</span>
-            <span class="ov-status">${DOT[it.status] ?? ""}</span>
-          </div>`;
-        }).join("");
+        $ovList.innerHTML = data.items.map(it => _ovItemHTML(it, it.original_rank)).join("");
       }
 
       // ── feed ─────────────────────────────────────────
       async function loadCard() {
+        if (summaryOpen) return;
         $status.textContent = "";
         $badge.innerHTML = "";
         $meta.textContent = "";
@@ -572,6 +782,13 @@
 
       async function send(eid) {
         if (!current) return;
+        // record interaction in local history before firing request
+        viewHistory.push({
+          item_id:   current.item_id,
+          title:     current.title,
+          image_url: current.image_url,
+          status:    eid === EID_LIKE ? "liked" : "skipped",
+        });
         await fetch("/api/v1/interact", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
